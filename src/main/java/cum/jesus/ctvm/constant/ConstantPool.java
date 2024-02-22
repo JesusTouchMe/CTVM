@@ -1,5 +1,8 @@
 package cum.jesus.ctvm.constant;
 
+import cum.jesus.ctvm.module.LocalSymbol;
+import cum.jesus.ctvm.module.Module;
+import cum.jesus.ctvm.value.FunctionHandleValue;
 import cum.jesus.ctvm.value.NumberValue;
 import cum.jesus.ctvm.value.StringValue;
 import cum.jesus.ctvm.value.Value;
@@ -14,8 +17,8 @@ public final class ConstantPool implements Iterable<Value> {
          this.pool = new Value[(initialSize == 0) ? 10 : initialSize];
      }
 
-     public int parse(byte[] bytes, int index) {
-         int poolIndex = 0;
+     public int parse(byte[] bytes, int index, Module module) {
+         int poolIndex = 1;
 
          loop:
          while (index < bytes.length) {
@@ -61,6 +64,18 @@ public final class ConstantPool implements Iterable<Value> {
                      }
 
                      pool[poolIndex++] = new StringValue(new String(string));
+                 } break;
+
+                 case Value.TYPE_FUNCTION: {
+                     int length = ((bytes[index++] & 0xFF) << 8) | (bytes[index++] & 0xFF);
+                     byte[] string = new byte[length];
+
+                     for (int i = 0; i < length; i++) {
+                         string[i] = bytes[index++];
+                     }
+
+                     String name = new String(string);
+                     pool[poolIndex] = new FunctionHandleValue(new LocalSymbol(module, name, module.getFunction(name)));
                  } break;
 
                  case 0:

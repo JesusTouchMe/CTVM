@@ -1,6 +1,7 @@
 package cum.jesus.ctvm.executor;
 
 import cum.jesus.ctvm.VM;
+import cum.jesus.ctvm.module.Module;
 
 public interface Executor {
     byte PREFIX_MASK = (byte) 0b11100000;
@@ -11,6 +12,13 @@ public interface Executor {
      * @param vm
      */
     void setVM(VM vm);
+
+    /**
+     * Sets the current module to execute
+     *
+     * @param module the module
+     */
+    void setModule(Module module);
 
     /**
      * Set the location to begin executing

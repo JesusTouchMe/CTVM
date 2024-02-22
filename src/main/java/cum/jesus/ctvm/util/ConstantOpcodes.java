@@ -57,5 +57,8 @@ public final class ConstantOpcodes {
             INT = 0x2F,
 
             CLD = 0x30,
-            CST = 0x31;
+            CST = 0x31,
+
+            MOD = 0x36,
+            FUN = 0x37;
 }

@@ -3,10 +3,10 @@ package cum.jesus.ctvm.executor;
 import cum.jesus.ctvm.VM;
 import cum.jesus.ctvm.bytecode.ByteCode;
 import cum.jesus.ctvm.data.Register;
+import cum.jesus.ctvm.module.LocalSymbol;
+import cum.jesus.ctvm.module.Module;
 import cum.jesus.ctvm.util.Opcodes;
-import cum.jesus.ctvm.value.NumberValue;
-import cum.jesus.ctvm.value.StringValue;
-import cum.jesus.ctvm.value.Value;
+import cum.jesus.ctvm.value.*;
 
 import java.util.Stack;
 
@@ -14,6 +14,7 @@ import static cum.jesus.ctvm.util.ConstantOpcodes.*;
 
 public final class SynchronousCodeExecutor implements Executor {
     private VM vm = null;
+    private Module currentModule = null;
     private int pos = 0;
 
     /**
@@ -41,7 +42,7 @@ public final class SynchronousCodeExecutor implements Executor {
      * @return The current byte in the bytecode
      */
     private byte getOpcode() {
-        return vm.getCodeSection().get(pos++);
+        return currentModule.getCodeSection().get(pos++);
     }
 
     /**
@@ -49,7 +50,7 @@ public final class SynchronousCodeExecutor implements Executor {
      * @return The next 4 bytes in the bytecode
      */
     private byte[] getOperands() {
-        ByteCode codeSection = vm.getCodeSection();
+        ByteCode codeSection = currentModule.getCodeSection();
         return new byte[] {
                 codeSection.get(pos++),
                 codeSection.get(pos++),
@@ -64,7 +65,7 @@ public final class SynchronousCodeExecutor implements Executor {
      * @return The operands in a new array
      */
     private byte[] getOperands(int amount) {
-        ByteCode codeSection = vm.getCodeSection();
+        ByteCode codeSection = currentModule.getCodeSection();
         byte[] operands = new byte[amount];
         for (int i = 0; i < amount; i++) {
             operands[i] = codeSection.get(pos++);
@@ -73,12 +74,17 @@ public final class SynchronousCodeExecutor implements Executor {
     }
 
     private byte getNext() {
-        return vm.getCodeSection().get(pos++);
+        return currentModule.getCodeSection().get(pos++);
     }
 
     @Override
     public void setVM(VM vm) {
         this.vm = vm;
+    }
+
+    @Override
+    public void setModule(Module module) {
+        currentModule = module;
     }
 
     @Override
@@ -136,7 +142,7 @@ public final class SynchronousCodeExecutor implements Executor {
                 } break;
 
                 case CENT: {
-                    vm.getPrefixBuffer().addValue(vm.getConstant((operands[0] & 0xFF << 8) | (operands[1] & 0xFF)));
+                    vm.getPrefixBuffer().addValue(currentModule.getConstant((operands[0] & 0xFF << 8) | (operands[1] & 0xFF)));
                 } break;
 
                 default: {
@@ -151,7 +157,7 @@ public final class SynchronousCodeExecutor implements Executor {
                 } break;
 
                 case NEWL: {
-                    vm.incLineNumber();
+                    currentModule.setLineNumber(currentModule.getLineNumber() + 1);
                 } break;
 
                 case PUSH: {
@@ -378,10 +384,36 @@ public final class SynchronousCodeExecutor implements Executor {
                 } break;
 
                 case CALL: {
-                    Value functionName = vm.getRegister(operands[0]).getValueNoClone();
-                    int symbol = vm.getSymbol(functionName.asString().toJavaString());
-                    callStack.push(new CallFrame(vm.saveRegisters(), pos));
-                    pos = symbol;
+                    Value module = vm.getRegister(operands[0]).getValueNoClone();
+                    Value function = vm.getRegister(operands[1]).getValueNoClone();
+
+                    Module callModule = null;
+
+                    if (module instanceof ModuleHandleValue) {
+                        callModule = ((ModuleHandleValue) module).module;
+                    } else if (module instanceof StringValue) {
+                        callModule = vm.getModule(((StringValue) module).toJavaString());
+                    }
+
+                    if (callModule == null) {
+                        //TODO: handle error
+                        throw new RuntimeException();
+                    }
+
+                    if (function instanceof FunctionHandleValue) {
+                        int symbol = ((FunctionHandleValue) function).function.location;
+                        callStack.push(new CallFrame(vm.saveRegisters(), pos));
+                        pos = symbol;
+                    } else if (function instanceof StringValue) {
+                        int symbol = callModule.getFunction(((StringValue) function).toJavaString());
+                        callStack.push(new CallFrame(vm.saveRegisters(), pos));
+                        pos = symbol;
+                    } else {
+                        //TODO: handle error
+                        throw new RuntimeException();
+                    }
+
+                    currentModule = callModule;
                 } break;
 
                 case RET: {
@@ -396,11 +428,28 @@ public final class SynchronousCodeExecutor implements Executor {
                 } break;
 
                 case CLD: {
-                    vm.getRegister(operands[0]).setValue(vm.getConstant(((operands[1] & 0xFF) << 8) | (operands[2] & 0xFF)));
+                    vm.getRegister(operands[0]).setValue(currentModule.getConstant(((operands[1] & 0xFF) << 8) | (operands[2] & 0xFF)));
                 } break;
 
                 case CST: {
-                    vm.setConstant(((operands[0] & 0xFF) << 8) | (operands[1] & 0xFF), vm.getRegister(operands[2]).getValue());
+                    currentModule.setConstant(((operands[0] & 0xFF) << 8) | (operands[1] & 0xFF), vm.getRegister(operands[2]).getValue());
+                } break;
+
+                case MOD: {
+                    String name = vm.getRegister(operands[1]).getValueNoClone().asString().toJavaString();
+                    vm.getRegister(operands[0]).setValueNoClone(new ModuleHandleValue(vm.getModule(name)));
+                } break;
+
+                case FUN: {
+                    Value module = vm.getRegister(operands[1]).getValueNoClone();
+                    String name = vm.getRegister(operands[2]).getValueNoClone().asString().toJavaString();
+
+                    if (module instanceof ModuleHandleValue) {
+                        vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(((ModuleHandleValue) module).module, name, ((ModuleHandleValue) module).module.getFunction(name))));
+                    } else if (module instanceof StringValue) {
+                        Module mod = vm.getModule(((StringValue) module).toJavaString());
+                        vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(mod, name, mod.getFunction(name))));
+                    }
                 } break;
 
                 default: {

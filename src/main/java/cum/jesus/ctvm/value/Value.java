@@ -6,6 +6,7 @@ public abstract class Value {
     public static final byte TYPE_INT = 0x03;
     public static final byte TYPE_LONG = 0x04;
     public static final byte TYPE_STRING = 0x05;
+    public static final byte TYPE_FUNCTION = 0x06;
 
     public final NumberValue asNumber() {
         return (NumberValue) this;

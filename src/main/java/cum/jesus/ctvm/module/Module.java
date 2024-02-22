@@ -2,10 +2,13 @@ package cum.jesus.ctvm.module;
 
 import cum.jesus.ctvm.bytecode.ByteCode;
 import cum.jesus.ctvm.constant.ConstantPool;
+import cum.jesus.ctvm.value.ModuleHandleValue;
 import cum.jesus.ctvm.value.Value;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public final class Module {
     private final String name;
@@ -91,8 +94,10 @@ public final class Module {
         }
         index += 2;
 
-        constPool = new ConstantPool(fullByteCode[index++]);
-        index = constPool.parse(fullByteCode, index);
+        constPool = new ConstantPool(fullByteCode[index++] + 1);
+        index = constPool.parse(fullByteCode, index, this);
+
+        constPool.set(0, new ModuleHandleValue(this));
 
         dataSection = new ByteCode(fullByteCode, 0, index);
 
@@ -104,11 +109,22 @@ public final class Module {
         codeSection = new ByteCode(fullByteCode, index);
     }
 
+    public int getFunction(String name) {
+        return functions.get(name);
+    }
+
     public Value getConstant(int index) {
         return constPool.get(index);
     }
 
     public void setConstant(int index, Value newValue) {
         constPool.set(index, newValue);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(name, lineNumber, version, dataSection, codeSection, functions, constPool);
+        result = 31 * result + Arrays.hashCode(fullByteCode);
+        return result;
     }
 }

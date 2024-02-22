@@ -15,6 +15,7 @@ import cum.jesus.ctvm.value.Value;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public final class VM {
     public static final Value ZERO = new NumberValue(Value.TYPE_BYTE, 0);
@@ -82,6 +83,7 @@ public final class VM {
 
         ExecutorService moduleService = Executors.newFixedThreadPool(4);
         globalConstPool = new ArrayList<>();
+        globalFunctions = new HashMap<>();
 
         for (Module module : modules.values()) {
             moduleService.submit(() -> {
@@ -90,7 +92,7 @@ public final class VM {
                     globalConstPool.add(value);
                 }
                 for (Map.Entry<String, Integer> symbol : module.getFunctions().entrySet()) {
-                    globalFunctions.put(symbol.getKey(), new LocalSymbol(module, symbol.getValue()));
+                    globalFunctions.put(symbol.getKey(), new LocalSymbol(module, symbol.getKey(), symbol.getValue()));
                 }
             });
         }
@@ -113,9 +115,12 @@ public final class VM {
         interruptCallbacks.put((byte) 0x07, InterruptCallbacks::getline);
         interruptCallbacks.put((byte) 0x84, InterruptCallbacks::freestr);
 
-        globalFunctions = new HashMap<>();
-
         moduleService.shutdown();
+        try {
+            moduleService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
 
         int version = -1;
         for (Module module : modules.values()) {
@@ -127,6 +132,16 @@ public final class VM {
                 }
             }
         }
+
+        LocalSymbol startSymbol = globalFunctions.get(".start");
+        if (startSymbol == null) {
+            //TODO: handle error
+            throw new RuntimeException();
+        }
+
+        mainExecutor.setVM(this);
+        mainExecutor.setModule(startSymbol.module);
+        mainExecutor.setPos(startSymbol.location);
 
         prepared = true;
     }
@@ -174,7 +189,7 @@ public final class VM {
     }
 
     public LocalSymbol getSymbol(String name) {
-        return globalFunctions.getOrDefault(name, new LocalSymbol(null, -1));
+        return globalFunctions.getOrDefault(name, new LocalSymbol(null, null, -1));
     }
 
     public Register getRegister(int id) {
