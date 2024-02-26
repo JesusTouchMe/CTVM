@@ -97,6 +97,8 @@ public final class SynchronousCodeExecutor implements Executor {
         byte opcode = getOpcode();
         instructionCount++;
 
+        System.out.println(opcode);
+
         if ((opcode & PREFIX_MASK) == PREFIX_COMPARE) { // prefix. special requirements
             Opcodes specialPrefix = Opcodes.getPrefix(opcode);
             assert specialPrefix != null;

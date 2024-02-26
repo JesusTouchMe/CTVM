@@ -10,8 +10,8 @@ import java.nio.file.Files;
 
 public class Main {
     public static void main(String[] args) throws IOException {
-        //File inputTemp = new File("C:\\Users\\JesusTouchMe\\IdeaProjects\\CTS-Compiler\\test.ct");
-        File inputTemp = new File("C:\\Users\\Jannik\\IdeaProjects\\CheatTriggersCompiler\\test.ct");
+        File inputTemp = new File("C:\\Users\\JesusTouchMe\\IdeaProjects\\CTS-Compiler\\test.ct");
+        //File inputTemp = new File("C:\\Users\\Jannik\\IdeaProjects\\CheatTriggersCompiler\\test.ct");
         if (!inputTemp.exists()) {
             throw new IOException("Input does not exist");
         }

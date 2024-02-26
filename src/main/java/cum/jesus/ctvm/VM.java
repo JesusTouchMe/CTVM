@@ -25,6 +25,7 @@ public final class VM {
     private boolean prepared = false;
 
     private Map<String, LocalSymbol> globalFunctions;
+
     private List<Value> globalConstPool;
 
     private Executor mainExecutor;

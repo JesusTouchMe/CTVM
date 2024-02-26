@@ -75,7 +75,7 @@ public final class ConstantPool implements Iterable<Value> {
                      }
 
                      String name = new String(string);
-                     pool[poolIndex] = new FunctionHandleValue(new LocalSymbol(module, name, module.getFunction(name)));
+                     pool[poolIndex++] = new FunctionHandleValue(new LocalSymbol(module, name, module.getFunction(name)));
                  } break;
 
                  case 0:
