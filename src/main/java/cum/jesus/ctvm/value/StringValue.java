@@ -1,14 +1,18 @@
 package cum.jesus.ctvm.value;
 
 public final class StringValue extends Value {
-    private final String javaString;
+    private String javaString;
 
     public StringValue(String javaString) {
         this.javaString = javaString;
     }
 
-    public String toJavaString() {
+    public String getJavaString() {
         return javaString;
+    }
+
+    public void setJavaString(String javaString) {
+        this.javaString = javaString;
     }
 
     @Override
@@ -119,5 +123,10 @@ public final class StringValue extends Value {
     @Override
     public int hashCode() {
         return javaString.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return '"' + javaString.replace("\n", "\\n") + '"';
     }
 }

@@ -118,4 +118,9 @@ public class ModuleHandleValue extends Value {
     public int hashCode() {
         return Objects.hash(module);
     }
+
+    @Override
+    public String toString() {
+        return "module " + module.getName();
+    }
 }

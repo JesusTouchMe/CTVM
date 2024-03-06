@@ -22,7 +22,7 @@ public final class ConstantPool implements Iterable<Value> {
 
          loop:
          while (index < bytes.length) {
-             if (poolIndex == pool.length) {
+             if (poolIndex == pool.length && bytes[index] != 0) {
                  int oldCapacity = pool.length;
                  int newCapacity = oldCapacity + (oldCapacity >> 1);
                  pool = Arrays.copyOf(pool, newCapacity);

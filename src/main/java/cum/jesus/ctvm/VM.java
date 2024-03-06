@@ -46,6 +46,14 @@ public final class VM {
         modules = new HashMap<>();
     }
 
+    public Collection<Module> getModules() {
+        return modules.values();
+    }
+
+    public Set<Map.Entry<String, LocalSymbol>> getGlobalSymbols() {
+        return globalFunctions.entrySet();
+    }
+
     public int getVersion() {
         return modules.values().toArray(new Module[0])[0].getVersion();
     }
@@ -93,7 +101,7 @@ public final class VM {
                     globalConstPool.add(value);
                 }
                 for (Map.Entry<String, Integer> symbol : module.getFunctions().entrySet()) {
-                    globalFunctions.put(symbol.getKey(), new LocalSymbol(module, symbol.getKey(), symbol.getValue()));
+                    globalFunctions.put(module.getName() + "::" + symbol.getKey(), new LocalSymbol(module, symbol.getKey(), symbol.getValue()));
                 }
             });
         }
@@ -102,10 +110,11 @@ public final class VM {
 
         for (int i = 1; i < registers.length; i++) {
             registers[i] = new Register();
-            registers[i].setValue(ZERO);
+            registers[i].setValue(ZERO.clone());
         }
 
         registers[0] = new PrefixBufferRegister();
+
 
         interruptCallbacks.put((byte) 0x01, InterruptCallbacks::exit);
         interruptCallbacks.put((byte) 0x02, InterruptCallbacks::printvm);
@@ -134,7 +143,13 @@ public final class VM {
             }
         }
 
-        LocalSymbol startSymbol = globalFunctions.get(".start");
+        LocalSymbol startSymbol = null;
+        for (LocalSymbol symbol : globalFunctions.values()) {
+            if (symbol.name.equals(".start")) {
+                startSymbol = symbol;
+                break;
+            }
+        }
         if (startSymbol == null) {
             //TODO: handle error
             throw new RuntimeException();

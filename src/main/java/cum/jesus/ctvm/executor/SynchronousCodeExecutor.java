@@ -97,8 +97,6 @@ public final class SynchronousCodeExecutor implements Executor {
         byte opcode = getOpcode();
         instructionCount++;
 
-        System.out.println(opcode);
-
         if ((opcode & PREFIX_MASK) == PREFIX_COMPARE) { // prefix. special requirements
             Opcodes specialPrefix = Opcodes.getPrefix(opcode);
             assert specialPrefix != null;
@@ -394,7 +392,7 @@ public final class SynchronousCodeExecutor implements Executor {
                     if (module instanceof ModuleHandleValue) {
                         callModule = ((ModuleHandleValue) module).module;
                     } else if (module instanceof StringValue) {
-                        callModule = vm.getModule(((StringValue) module).toJavaString());
+                        callModule = vm.getModule(((StringValue) module).getJavaString());
                     }
 
                     if (callModule == null) {
@@ -407,7 +405,7 @@ public final class SynchronousCodeExecutor implements Executor {
                         callStack.push(new CallFrame(vm.saveRegisters(), pos));
                         pos = symbol;
                     } else if (function instanceof StringValue) {
-                        int symbol = callModule.getFunction(((StringValue) function).toJavaString());
+                        int symbol = callModule.getFunction(((StringValue) function).getJavaString());
                         callStack.push(new CallFrame(vm.saveRegisters(), pos));
                         pos = symbol;
                     } else {
@@ -427,6 +425,7 @@ public final class SynchronousCodeExecutor implements Executor {
                 case INT: {
                     stop();
                     vm.interruptCallbacks.get(operands[0]).accept(vm, operands[1], operands[2], operands[3]);
+                    start();
                 } break;
 
                 case CLD: {
@@ -438,18 +437,18 @@ public final class SynchronousCodeExecutor implements Executor {
                 } break;
 
                 case MOD: {
-                    String name = vm.getRegister(operands[1]).getValueNoClone().asString().toJavaString();
+                    String name = vm.getRegister(operands[1]).getValueNoClone().asString().getJavaString();
                     vm.getRegister(operands[0]).setValueNoClone(new ModuleHandleValue(vm.getModule(name)));
                 } break;
 
                 case FUN: {
                     Value module = vm.getRegister(operands[1]).getValueNoClone();
-                    String name = vm.getRegister(operands[2]).getValueNoClone().asString().toJavaString();
+                    String name = vm.getRegister(operands[2]).getValueNoClone().asString().getJavaString();
 
                     if (module instanceof ModuleHandleValue) {
                         vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(((ModuleHandleValue) module).module, name, ((ModuleHandleValue) module).module.getFunction(name))));
                     } else if (module instanceof StringValue) {
-                        Module mod = vm.getModule(((StringValue) module).toJavaString());
+                        Module mod = vm.getModule(((StringValue) module).getJavaString());
                         vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(mod, name, mod.getFunction(name))));
                     }
                 } break;

@@ -217,4 +217,9 @@ public final class NumberValue extends Value {
         result = 31 * result + (int) (value ^ (value >>> 32));
         return result;
     }
+
+    @Override
+    public String toString() {
+        return String.valueOf(value);
+    }
 }

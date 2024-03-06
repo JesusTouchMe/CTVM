@@ -118,4 +118,9 @@ public class FunctionHandleValue extends Value {
     public int hashCode() {
         return Objects.hash(function);
     }
+
+    @Override
+    public String toString() {
+        return "function " + function.name;
+    }
 }
