@@ -1,7 +1,9 @@
 package cum.jesus.ctvm.module;
 
+import cum.jesus.ctvm.VM;
 import cum.jesus.ctvm.bytecode.ByteCode;
 import cum.jesus.ctvm.constant.ConstantPool;
+import cum.jesus.ctvm.util.TwoConsumer;
 import cum.jesus.ctvm.value.ModuleHandleValue;
 import cum.jesus.ctvm.value.Value;
 
@@ -21,11 +23,13 @@ public final class Module {
     private ByteCode codeSection;
 
     private Map<String, Integer> functions;
+    private Map<String, TwoConsumer<VM, Module>> natives;
     private ConstantPool constPool;
 
     public Module(String name, byte[] fullByteCode) {
         this.name = name;
         this.fullByteCode = fullByteCode;
+        this.natives = new HashMap<>();
     }
 
     public String getName() {
@@ -110,7 +114,15 @@ public final class Module {
     }
 
     public int getFunction(String name) {
-        return functions.get(name);
+        return functions.getOrDefault(name, -1);
+    }
+
+    public TwoConsumer<VM, Module> getNative(String name) {
+        return natives.get(name);
+    }
+
+    public void putNative(String name, TwoConsumer<VM, Module> function) {
+        natives.put(name, function);
     }
 
     public Value getConstant(int index) {

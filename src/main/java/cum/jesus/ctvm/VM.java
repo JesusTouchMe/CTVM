@@ -9,6 +9,7 @@ import cum.jesus.ctvm.memory.MemoryManager;
 import cum.jesus.ctvm.module.LocalSymbol;
 import cum.jesus.ctvm.module.Module;
 import cum.jesus.ctvm.util.QuadConsumer;
+import cum.jesus.ctvm.util.TwoConsumer;
 import cum.jesus.ctvm.value.NumberValue;
 import cum.jesus.ctvm.value.Value;
 

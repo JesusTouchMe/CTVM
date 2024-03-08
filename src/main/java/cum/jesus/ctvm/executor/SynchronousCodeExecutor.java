@@ -6,6 +6,7 @@ import cum.jesus.ctvm.data.Register;
 import cum.jesus.ctvm.module.LocalSymbol;
 import cum.jesus.ctvm.module.Module;
 import cum.jesus.ctvm.util.Opcodes;
+import cum.jesus.ctvm.util.TwoConsumer;
 import cum.jesus.ctvm.value.*;
 
 import java.util.Stack;
@@ -401,12 +402,29 @@ public final class SynchronousCodeExecutor implements Executor {
                     }
 
                     if (function instanceof FunctionHandleValue) {
+                        if (((FunctionHandleValue) function).function.nativeFunction != null) {
+                            ((FunctionHandleValue) function).function.nativeFunction.accept(vm, callModule);
+                            break;
+                        }
+
                         int symbol = ((FunctionHandleValue) function).function.location;
-                        callStack.push(new CallFrame(vm.saveRegisters(), pos));
+                        callStack.push(new CallFrame(currentModule, vm.saveRegisters(), pos));
                         pos = symbol;
                     } else if (function instanceof StringValue) {
                         int symbol = callModule.getFunction(((StringValue) function).getJavaString());
-                        callStack.push(new CallFrame(vm.saveRegisters(), pos));
+
+                        if (symbol == -1) {
+                            TwoConsumer<VM, Module> nativeFunction = callModule.getNative(((StringValue) function).getJavaString());
+                            if (nativeFunction == null) {
+                                throw new RuntimeException(); //TODO: better
+                            }
+
+                            nativeFunction.accept(vm, callModule);
+
+                            break;
+                        }
+
+                        callStack.push(new CallFrame(currentModule, vm.saveRegisters(), pos));
                         pos = symbol;
                     } else {
                         //TODO: handle error
@@ -419,6 +437,7 @@ public final class SynchronousCodeExecutor implements Executor {
                 case RET: {
                     CallFrame frame = callStack.pop();
                     vm.restoreRegisters(frame.registers);
+                    currentModule = frame.module;
                     pos = frame.position;
                 } break;
 
@@ -446,10 +465,22 @@ public final class SynchronousCodeExecutor implements Executor {
                     String name = vm.getRegister(operands[2]).getValueNoClone().asString().getJavaString();
 
                     if (module instanceof ModuleHandleValue) {
-                        vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(((ModuleHandleValue) module).module, name, ((ModuleHandleValue) module).module.getFunction(name))));
+                        int symbol = ((ModuleHandleValue) module).module.getFunction(name);
+
+                        if (symbol == -1) {
+                            vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(((ModuleHandleValue) module).module, name, ((ModuleHandleValue) module).module.getNative(name))));
+                        } else {
+                            vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(((ModuleHandleValue) module).module, name, symbol)));
+                        }
                     } else if (module instanceof StringValue) {
                         Module mod = vm.getModule(((StringValue) module).getJavaString());
-                        vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(mod, name, mod.getFunction(name))));
+                        int symbol = mod.getFunction(name);
+
+                        if (symbol == -1) {
+                            vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(mod, name, mod.getNative(name))));
+                        } else {
+                            vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(mod, name, symbol)));
+                        }
                     }
                 } break;
 
@@ -474,10 +505,12 @@ public final class SynchronousCodeExecutor implements Executor {
     }
 
     private final class CallFrame {
+        Module module;
         Register[] registers;
         int position;
 
-        public CallFrame(Register[] registers, int position) {
+        public CallFrame(Module module, Register[] registers, int position) {
+            this.module = module;
             this.registers = registers;
             this.position = position;
         }
