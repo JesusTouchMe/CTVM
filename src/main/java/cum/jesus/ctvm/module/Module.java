@@ -1,9 +1,13 @@
 package cum.jesus.ctvm.module;
 
+import cum.jesus.ctni.Handle;
+import cum.jesus.ctni.IEnvironment;
+import cum.jesus.ctni.NativeFunction;
 import cum.jesus.ctvm.VM;
 import cum.jesus.ctvm.bytecode.ByteCode;
 import cum.jesus.ctvm.constant.ConstantPool;
-import cum.jesus.ctvm.util.TwoConsumer;
+import cum.jesus.ctvm.env.Environment;
+import cum.jesus.ctvm.value.FunctionHandleValue;
 import cum.jesus.ctvm.value.ModuleHandleValue;
 import cum.jesus.ctvm.value.Value;
 
@@ -12,8 +16,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public final class Module {
-    private final String name;
+public final class Module implements Handle {
+    private VM vm;
+
+    private String name;
 
     private int lineNumber = 0;
     private int version;
@@ -23,13 +29,18 @@ public final class Module {
     private ByteCode codeSection;
 
     private Map<String, Integer> functions;
-    private Map<String, TwoConsumer<VM, Module>> natives;
+    private Map<String, NativeFunction> natives;
     private ConstantPool constPool;
 
-    public Module(String name, byte[] fullByteCode) {
+    public final IEnvironment env;
+    private LibraryLoader libraryLoader = null;
+
+    public Module(VM vm, String name, byte[] fullByteCode) {
+        this.vm = vm;
         this.name = name;
         this.fullByteCode = fullByteCode;
         this.natives = new HashMap<>();
+        this.env = new Environment(vm, this);
     }
 
     public String getName() {
@@ -69,6 +80,13 @@ public final class Module {
         StringBuilder sb;
 
         functions = new HashMap<>();
+
+        sb = new StringBuilder();
+        while (fullByteCode[index] != 0) {
+            sb.append((char) fullByteCode[index++]);
+        }
+        index++;
+        name = sb.toString();
 
         if (fullByteCode[index] == 'v') {
             sb = new StringBuilder();
@@ -111,26 +129,58 @@ public final class Module {
         index += 4;
 
         codeSection = new ByteCode(fullByteCode, index);
+
+        int constructor = functions.getOrDefault(".constructor", -1);
+        if (constructor != -1) {
+            vm.addConstructor(new LocalSymbol(this, ".constructor", constructor));
+        }
     }
 
-    public int getFunction(String name) {
-        return functions.getOrDefault(name, -1);
+    public Map<String, NativeFunction> getNatives() {
+        return natives;
     }
 
-    public TwoConsumer<VM, Module> getNative(String name) {
-        return natives.get(name);
+    public LocalSymbol getFunction(String name) {
+        int symbol = functions.getOrDefault(name, -1);
+        if (symbol == -1) {
+            return getNative(name);
+        }
+        return new LocalSymbol(this, name, symbol);
     }
 
-    public void putNative(String name, TwoConsumer<VM, Module> function) {
+    public LocalSymbol getNative(String name) {
+        return new LocalSymbol(this, name, natives.get(name));
+    }
+
+    public void putNative(String name, NativeFunction function) {
         natives.put(name, function);
     }
 
     public Value getConstant(int index) {
-        return constPool.get(index);
+        Value value = constPool.get(index);
+
+        if (value instanceof FunctionHandleValue && ((FunctionHandleValue) value).function.nativeFunction == null && ((FunctionHandleValue) value).function.location == -1) { // unloaded native. attempt to load it
+            constPool.set(index, new FunctionHandleValue(getNative(((FunctionHandleValue) value).function.name)));
+            value = constPool.get(index);
+        }
+
+        return value;
     }
 
     public void setConstant(int index, Value newValue) {
         constPool.set(index, newValue);
+    }
+
+    public boolean hasLibraryLoader() {
+        return libraryLoader != null;
+    }
+
+    public LibraryLoader getLibraryLoader() {
+        return libraryLoader;
+    }
+
+    public void setLibraryLoader() {
+        libraryLoader = new LibraryLoader(this);
     }
 
     @Override

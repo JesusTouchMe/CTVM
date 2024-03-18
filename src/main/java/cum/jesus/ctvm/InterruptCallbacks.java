@@ -1,6 +1,7 @@
 package cum.jesus.ctvm;
 
 import cum.jesus.ctvm.data.Register;
+import cum.jesus.ctvm.module.LibraryLoader;
 import cum.jesus.ctvm.module.LocalSymbol;
 import cum.jesus.ctvm.module.Module;
 import cum.jesus.ctvm.value.ModuleHandleValue;
@@ -8,15 +9,16 @@ import cum.jesus.ctvm.value.NumberValue;
 import cum.jesus.ctvm.value.StringValue;
 import cum.jesus.ctvm.value.Value;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 
 public final class InterruptCallbacks {
-    public static void exit(VM vm, byte byte1, byte byte2, byte byte3) {
-        System.exit(vm.getRegister(Register.regE).getValueNoClone().asNumber().getInt());
+    public static void exit(VM vm, Module module, byte byte1, byte byte2, byte byte3) {
+        System.exit(vm.getRegister(Register.regC).getValueNoClone().asNumber().getInt());
     }
 
-    public static void printvm(VM vm, byte byte1, byte byte2, byte byte3) {
+    public static void printvm(VM vm, Module __, byte byte1, byte byte2, byte byte3) {
         System.out.printf("regA: %s, regB: %s, regC: %s, regD: %s\nregE: %s, regF: %s, regG: %s, regH: %s\n\n",
                 vm.getRegister(1).getValueNoClone().toString(), vm.getRegister(2).getValueNoClone().toString(),
                 vm.getRegister(3).getValueNoClone().toString(), vm.getRegister(4).getValueNoClone().toString(),
@@ -92,31 +94,42 @@ public final class InterruptCallbacks {
         }
     }
 
-    public static void gc(VM vm, byte byte1, byte byte2, byte byte3) {
+    public static void gc(VM vm, Module module, byte byte1, byte byte2, byte byte3) {
         int flags = (((int) byte1 & 0xFF) << 8) | ((int) byte2 & 0xFF);
         System.gc();
     }
 
-    public static void write(VM vm, byte byte1, byte byte2, byte byte3) {
+    public static void write(VM vm, Module module, byte byte1, byte byte2, byte byte3) {
         assert vm.getRegister(Register.regC).getValueNoClone() instanceof StringValue; //TODO be sophisticated
         System.out.print(vm.getRegister(Register.regC).getValueNoClone().asString().getJavaString());
     }
 
-    public static void writei(VM vm, byte byte1, byte byte2, byte byte3) {
+    public static void writei(VM vm, Module module, byte byte1, byte byte2, byte byte3) {
         assert vm.getRegister(Register.regC).getValueNoClone() instanceof NumberValue; //TODO be sophisticated
         System.out.print(vm.getRegister(Register.regC).getValueNoClone().asNumber().getLong());
     }
 
-    public static void writef(VM vm, byte byte1, byte byte2, byte byte3) {
+    public static void writef(VM vm, Module module, byte byte1, byte byte2, byte byte3) {
 
     }
 
-    public static void getline(VM vm, byte byte1, byte byte2, byte byte3) {
+    public static void getline(VM vm, Module module, byte byte1, byte byte2, byte byte3) {
         String in = System.console().readLine();
         vm.getRegister(Register.regE).setValue(new StringValue(in));
     }
 
-    public static void freestr(VM vm, byte byte1, byte byte2, byte byte3) {
+    public static void loadlib(VM vm, Module module, byte byte1, byte byte2, byte byte3) {
+        LibraryLoader libraryLoader = LibraryLoader.get(module);
+        String jarPath = vm.getRegister(Register.regC).getValueNoClone().asString().getJavaString();
+
+        try {
+            libraryLoader.loadJarArchive(jarPath);
+        } catch (IOException e) {
+            throw new RuntimeException(e); //TODO: figure out
+        }
+    }
+
+    public static void freestr(VM vm, Module module, byte byte1, byte byte2, byte byte3) {
         if (!(vm.getRegister(Register.regC).getValueNoClone() instanceof StringValue)) {
             vm.getRegister(Register.regE).setValueNoClone(new NumberValue(Value.TYPE_INT, 1));
             return;

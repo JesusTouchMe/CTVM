@@ -1,12 +1,12 @@
 package cum.jesus.ctvm.executor;
 
+import cum.jesus.ctni.NativeFunction;
 import cum.jesus.ctvm.VM;
 import cum.jesus.ctvm.bytecode.ByteCode;
 import cum.jesus.ctvm.data.Register;
 import cum.jesus.ctvm.module.LocalSymbol;
 import cum.jesus.ctvm.module.Module;
 import cum.jesus.ctvm.util.Opcodes;
-import cum.jesus.ctvm.util.TwoConsumer;
 import cum.jesus.ctvm.value.*;
 
 import java.util.Stack;
@@ -402,36 +402,15 @@ public final class SynchronousCodeExecutor implements Executor {
                     }
 
                     if (function instanceof FunctionHandleValue) {
-                        if (((FunctionHandleValue) function).function.nativeFunction != null) {
-                            ((FunctionHandleValue) function).function.nativeFunction.accept(vm, callModule);
-                            break;
-                        }
-
-                        int symbol = ((FunctionHandleValue) function).function.location;
-                        callStack.push(new CallFrame(currentModule, vm.saveRegisters(), pos));
-                        pos = symbol;
+                        callFunction(((FunctionHandleValue) function).function, false);
                     } else if (function instanceof StringValue) {
-                        int symbol = callModule.getFunction(((StringValue) function).getJavaString());
-
-                        if (symbol == -1) {
-                            TwoConsumer<VM, Module> nativeFunction = callModule.getNative(((StringValue) function).getJavaString());
-                            if (nativeFunction == null) {
-                                throw new RuntimeException(); //TODO: better
-                            }
-
-                            nativeFunction.accept(vm, callModule);
-
-                            break;
-                        }
-
-                        callStack.push(new CallFrame(currentModule, vm.saveRegisters(), pos));
-                        pos = symbol;
+                        LocalSymbol symbol = callModule.getFunction(((StringValue) function).getJavaString());
+                        callFunction(symbol, false);
                     } else {
                         //TODO: handle error
                         throw new RuntimeException();
                     }
 
-                    currentModule = callModule;
                 } break;
 
                 case RET: {
@@ -439,12 +418,15 @@ public final class SynchronousCodeExecutor implements Executor {
                     vm.restoreRegisters(frame.registers);
                     currentModule = frame.module;
                     pos = frame.position;
+                    if (frame.stopAtReturn) {
+                        stop();
+                    }
                 } break;
 
                 case INT: {
                     stop();
-                    vm.interruptCallbacks.get(operands[0]).accept(vm, operands[1], operands[2], operands[3]);
-                    start();
+                    vm.interruptCallbacks.get(operands[0]).accept(vm, currentModule, operands[1], operands[2], operands[3]);
+                    startInternal();
                 } break;
 
                 case CLD: {
@@ -465,22 +447,14 @@ public final class SynchronousCodeExecutor implements Executor {
                     String name = vm.getRegister(operands[2]).getValueNoClone().asString().getJavaString();
 
                     if (module instanceof ModuleHandleValue) {
-                        int symbol = ((ModuleHandleValue) module).module.getFunction(name);
+                        LocalSymbol symbol = ((ModuleHandleValue) module).module.getFunction(name);
 
-                        if (symbol == -1) {
-                            vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(((ModuleHandleValue) module).module, name, ((ModuleHandleValue) module).module.getNative(name))));
-                        } else {
-                            vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(((ModuleHandleValue) module).module, name, symbol)));
-                        }
+                        vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(symbol));
                     } else if (module instanceof StringValue) {
                         Module mod = vm.getModule(((StringValue) module).getJavaString());
-                        int symbol = mod.getFunction(name);
+                        LocalSymbol symbol = mod.getFunction(name);
 
-                        if (symbol == -1) {
-                            vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(mod, name, mod.getNative(name))));
-                        } else {
-                            vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(new LocalSymbol(mod, name, symbol)));
-                        }
+                        vm.getRegister(operands[0]).setValueNoClone(new FunctionHandleValue(symbol));
                     }
                 } break;
 
@@ -491,9 +465,13 @@ public final class SynchronousCodeExecutor implements Executor {
         }
     }
 
+    private void startInternal() {
+        interrupted = false;
+    }
+
     @Override
     public void start() {
-        interrupted = false;
+        startInternal();
         while (!interrupted) {
             cycle();
         }
@@ -504,15 +482,55 @@ public final class SynchronousCodeExecutor implements Executor {
         interrupted = true;
     }
 
+    @Override
+    public void callFunction(LocalSymbol function, boolean stopAtReturn) {
+        if (function.nativeFunction != null) {
+            Object[] args = new Object[function.nativeFunction.argc()];
+
+            int[] registers = { Register.regC, Register.regD, Register.regF, Register.regG };
+            for (int i = 0; i < Math.min(registers.length, args.length); i++) {
+                args[i] = vm.getRegister(registers[i]).getValueNoClone().toJavaObject();
+            }
+
+            if (args.length > registers.length) {
+                int stackBase = vm.getRegister(Register.regStackBase).getValueNoClone().asNumber().getInt();
+                for (int i = registers.length; i < args.length; i++) {
+                    args[i] = vm.stack.get(stackBase - (i - registers.length)).toJavaObject();
+                }
+            }
+
+            function.nativeFunction.call(function.module.env, args);
+
+            if (stopAtReturn) {
+                stop();
+            }
+        } else {
+            int symbol = function.location;
+
+            if (symbol == -1) {
+                throw new RuntimeException(); //TODO: error
+            }
+
+            callStack.push(new CallFrame(currentModule, vm.saveRegisters(), pos, stopAtReturn));
+            pos = symbol;
+
+            if (interrupted) {
+                start();
+            }
+        }
+    }
+
     private final class CallFrame {
         Module module;
         Register[] registers;
         int position;
+        boolean stopAtReturn;
 
-        public CallFrame(Module module, Register[] registers, int position) {
+        public CallFrame(Module module, Register[] registers, int position, boolean stopAtReturn) {
             this.module = module;
             this.registers = registers;
             this.position = position;
+            this.stopAtReturn = stopAtReturn;
         }
     }
 }

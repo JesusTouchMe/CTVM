@@ -12,6 +12,11 @@ public class ModuleHandleValue extends Value {
     }
 
     @Override
+    public Object toJavaObject() {
+        return null;
+    }
+
+    @Override
     public void add(Value other) {
 
     }

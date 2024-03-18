@@ -1,14 +1,15 @@
 package cum.jesus.ctvm.module;
 
+import cum.jesus.ctni.Handle;
+import cum.jesus.ctni.NativeFunction;
 import cum.jesus.ctvm.VM;
-import cum.jesus.ctvm.util.TwoConsumer;
 
-public final class LocalSymbol {
+public final class LocalSymbol implements Handle {
     public final Module module;
     public final String name;
     public final int location;
 
-    public final TwoConsumer<VM, Module> nativeFunction;
+    public final NativeFunction nativeFunction;
 
     public LocalSymbol(Module module, String name, int location) {
         this.module = module;
@@ -17,7 +18,7 @@ public final class LocalSymbol {
         this.nativeFunction = null;
     }
 
-    public LocalSymbol(Module module, String name, TwoConsumer<VM, Module> nativeFunction) {
+    public LocalSymbol(Module module, String name, NativeFunction nativeFunction) {
         this.module = module;
         this.name = name;
         this.location = -1;

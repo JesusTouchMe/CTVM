@@ -12,6 +12,11 @@ public class FunctionHandleValue extends Value {
     }
 
     @Override
+    public Object toJavaObject() {
+        return null;
+    }
+
+    @Override
     public void add(Value other) {
 
     }

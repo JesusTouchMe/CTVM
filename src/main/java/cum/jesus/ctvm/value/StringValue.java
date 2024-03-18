@@ -16,6 +16,11 @@ public final class StringValue extends Value {
     }
 
     @Override
+    public Object toJavaObject() {
+        return javaString;
+    }
+
+    @Override
     public void add(Value other) {
 
     }

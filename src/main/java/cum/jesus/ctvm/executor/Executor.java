@@ -1,6 +1,7 @@
 package cum.jesus.ctvm.executor;
 
 import cum.jesus.ctvm.VM;
+import cum.jesus.ctvm.module.LocalSymbol;
 import cum.jesus.ctvm.module.Module;
 
 public interface Executor {
@@ -45,4 +46,6 @@ public interface Executor {
      * Stops the execution cycle
      */
     void stop();
+
+    void callFunction(LocalSymbol function, boolean stopAtReturn);
 }

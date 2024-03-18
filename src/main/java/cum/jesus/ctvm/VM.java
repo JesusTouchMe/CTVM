@@ -8,8 +8,7 @@ import cum.jesus.ctvm.executor.Executor;
 import cum.jesus.ctvm.memory.MemoryManager;
 import cum.jesus.ctvm.module.LocalSymbol;
 import cum.jesus.ctvm.module.Module;
-import cum.jesus.ctvm.util.QuadConsumer;
-import cum.jesus.ctvm.util.TwoConsumer;
+import cum.jesus.ctvm.util.QuinConsumer;
 import cum.jesus.ctvm.value.NumberValue;
 import cum.jesus.ctvm.value.Value;
 
@@ -26,6 +25,7 @@ public final class VM {
     private boolean prepared = false;
 
     private Map<String, LocalSymbol> globalFunctions;
+    private List<LocalSymbol> constructors;
 
     private List<Value> globalConstPool;
 
@@ -36,7 +36,7 @@ public final class VM {
 
     public final MemoryManager memoryManager;
 
-    public final Map<Byte, QuadConsumer<VM, Byte, Byte, Byte>> interruptCallbacks;
+    public final Map<Byte, QuinConsumer<VM, Module, Byte, Byte, Byte>> interruptCallbacks;
 
     public VM() {
         registers = new Register[11];
@@ -86,16 +86,25 @@ public final class VM {
         return this;
     }
 
+    public void addConstructor(LocalSymbol symbol) {
+        constructors.add(symbol);
+    }
+
     public void prepare(Executor mainExecutor) {
         if (prepared) {
             return;
         }
 
+        constructors = new ArrayList<>();
+
         ExecutorService moduleService = Executors.newFixedThreadPool(4);
         globalConstPool = new ArrayList<>();
         globalFunctions = new HashMap<>();
 
-        for (Module module : modules.values()) {
+        Collection<Module> moduleCollection = new ArrayList<>(getModules());
+        modules.clear();
+
+        for (Module module : moduleCollection) {
             moduleService.submit(() -> {
                 module.prepare();
                 for (Value value : module.getConstPool()) {
@@ -104,6 +113,7 @@ public final class VM {
                 for (Map.Entry<String, Integer> symbol : module.getFunctions().entrySet()) {
                     globalFunctions.put(module.getName() + "::" + symbol.getKey(), new LocalSymbol(module, symbol.getKey(), symbol.getValue()));
                 }
+                modules.put(module.getName(), module);
             });
         }
 
@@ -116,7 +126,6 @@ public final class VM {
 
         registers[0] = new PrefixBufferRegister();
 
-
         interruptCallbacks.put((byte) 0x01, InterruptCallbacks::exit);
         interruptCallbacks.put((byte) 0x02, InterruptCallbacks::printvm);
         interruptCallbacks.put((byte) 0x03, InterruptCallbacks::gc);
@@ -124,6 +133,7 @@ public final class VM {
         interruptCallbacks.put((byte) 0x05, InterruptCallbacks::writei);
         interruptCallbacks.put((byte) 0x06, InterruptCallbacks::writef);
         interruptCallbacks.put((byte) 0x07, InterruptCallbacks::getline);
+        interruptCallbacks.put((byte) 0x08, InterruptCallbacks::loadlib);
         interruptCallbacks.put((byte) 0x84, InterruptCallbacks::freestr);
 
         moduleService.shutdown();
@@ -156,6 +166,10 @@ public final class VM {
             throw new RuntimeException();
         }
 
+        for (LocalSymbol constructor : constructors) {
+            mainExecutor.callFunction(constructor, true);
+        }
+
         mainExecutor.setVM(this);
         mainExecutor.setModule(startSymbol.module);
         mainExecutor.setPos(startSymbol.location);
@@ -173,6 +187,10 @@ public final class VM {
 
     public void pauseExecution() {
         mainExecutor.stop();
+    }
+
+    public void callFunction(LocalSymbol function, boolean stopAtReturn) {
+        mainExecutor.callFunction(function, stopAtReturn);
     }
 
     public Module getModule(String name) {

@@ -46,6 +46,22 @@ public final class NumberValue extends Value {
     }
 
     @Override
+    public Object toJavaObject() {
+        switch (typeByte) {
+            case TYPE_BYTE:
+                return getByte();
+            case TYPE_SHORT:
+                return getShort();
+            case TYPE_INT:
+                return getInt();
+            case TYPE_LONG:
+                return getLong();
+        }
+
+        throw new RuntimeException("wtf");
+    }
+
+    @Override
     public void add(Value other) {
         if (other instanceof NumberValue) {
             value += ((NumberValue) other).value;
